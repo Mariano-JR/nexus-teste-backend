@@ -27,43 +27,45 @@ enum TypeTransactions {
 }
 
 model User {
-  userId          String          @id @default(uuid())
-  email           String          @unique
-  password        String
-  createdAt       DateTime        @default(now())
+  userId      String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  createdAt   DateTime @default(now())
 
-  wallet          Wallet?
+  wallet      Wallet?
 }
 
 model Wallet {
-  walletId        String          @id @default(uuid())
+  walletId    String   @id @default(uuid())
 
-  userId          String          @unique
-  user            User            @relation(fields: [userId], references: [userId])
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [userId])
 
-  brlBalance      Decimal         @default(0) @db.Decimal(18,8)
-  btcBalance      Decimal         @default(0) @db.Decimal(18,8)
-  ethBalance      Decimal         @default(0) @db.Decimal(18,8)
+  brlBalance  Decimal  @default(0) @db.Decimal(18,8)
+  btcBalance  Decimal  @default(0) @db.Decimal(18,8)
+  ethBalance  Decimal  @default(0) @db.Decimal(18,8)
 
-  createdAt       DateTime        @default(now())
+  createdAt   DateTime @default(now())
 
-  transactions    Transactions[]
+  transactions Transactions[]
 }
 
 model Transactions {
-  transactionId   String          @id @default(uuid())
+  transactionId   String   @id @default(uuid())
 
-  walletId        String          @unique
-  wallet          Wallet          @relation(fields: [walletId], references: [walletId])
+  walletId        String
+  wallet          Wallet   @relation(fields: [walletId], references: [walletId])
+
+  idempotencyKey  String?  @unique
 
   type            TypeTransactions
   token           Tokens
 
-  amount          Decimal         @db.Decimal(18,8)
-  previousBalance Decimal         @db.Decimal(18,8)
-  newBalance      Decimal         @db.Decimal(18,8)
+  amount          Decimal  @db.Decimal(18,8)
+  previousBalance Decimal  @db.Decimal(18,8)
+  newBalance      Decimal  @db.Decimal(18,8)
 
-  createdAt       DateTime        @default(now())
+  createdAt       DateTime @default(now())
 
   @@index([walletId, createdAt])
 }

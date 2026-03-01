@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt'
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma.service.js";
 import { AuthLoginDto } from "./dto/auth-login.dto.js";
+import { AppError } from "../common/errors/app.error.js";
 
 @Injectable()
 export class AuthService {
@@ -19,13 +20,13 @@ export class AuthService {
         });
 
         if (!user) {
-            throw new Error('Email ou senha inválidos');
+            throw new AppError('Email ou senha inválidos', 401);
         }
 
         const decryptedPassword = await bcrypt.compare(password, user.password)
 
         if (!decryptedPassword) {
-            throw new Error('Email ou senha inválidos');
+            throw new AppError('Email ou senha inválidos', 401);
         }
 
         const tokens = this.gerenateTokens(user.userId, user.email);
