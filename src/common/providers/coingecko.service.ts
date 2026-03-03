@@ -3,17 +3,28 @@ import { Tokens } from "../enums/token.enum.js";
 import { AppError } from "../errors/app.error.js";
 
 const tokenMap = {
-    BTC: 'bitcoin',
-    ETH: 'ethereum',
+    BRL: {
+        id: 'brazilian-real',
+        symbol: 'brl'
+    },
+    BTC: {
+        id: 'bitcoin',
+        symbol: 'btc'
+    },
+    ETH: {
+        id: 'ethereum',
+        symbol: 'eth'
+    },
 }
 
 @Injectable()
 export class CoingeckoService {
-    async getPrice(token: Tokens) {
-        const coinId = tokenMap[token];
+    async getPrice(tokenIn: Tokens, tokenOut: Tokens) {
+        const coinIn = tokenMap[tokenIn];
+        const coinOut = tokenMap[tokenOut];
 
         const response = await fetch(
-            `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=brl&x_cg_demo_api_key=${process.env.COINGECKO_API_KEY}`
+            `https://api.coingecko.com/api/v3/simple/price?ids=${coinOut.id}&vs_currencies=${coinIn.symbol}&x_cg_demo_api_key=${process.env.COINGECKO_API_KEY}`
         );
 
         if (!response.ok) {
@@ -21,6 +32,6 @@ export class CoingeckoService {
         }
 
         const data = await response.json();
-        return data[coinId].brl;
+        return data[coinOut.id][coinIn.symbol];
     }
 }
