@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { UserModule } from './users/users.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module.js';
@@ -7,6 +7,7 @@ import { WebHooksModule } from './webhooks/webhoooks.module.js';
 import { APP_FILTER } from '@nestjs/core';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter.js';
 import { SwapModule } from './swap/swap.module.js';
+import { LedgerModule } from './ledger/ledger.module.js';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { SwapModule } from './swap/swap.module.js';
     UserModule,
     WalletModule,
     WebHooksModule,
-    SwapModule
+    SwapModule,
+    LedgerModule,
   ],
   providers: [
     {
@@ -26,4 +28,4 @@ import { SwapModule } from './swap/swap.module.js';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

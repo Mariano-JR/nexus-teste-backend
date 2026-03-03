@@ -1,152 +1,153 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../prisma.service.js";
-import { DepositDto } from "../webhooks/dto/deposit.dto.js";
-import { AppError } from "../common/errors/app.error.js";
-import { Tokens } from "../common/enums/token.enum.js";
-import { WithdrawDto } from "./dto/withdraw.dto.js";
-import { Prisma } from "@prisma/client";
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma.service.js';
+import { DepositDto } from '../webhooks/dto/deposit.dto.js';
+import { AppError } from '../common/errors/app.error.js';
+import { Tokens } from '../common/enums/token.enum.js';
+import { WithdrawDto } from './dto/withdraw.dto.js';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class WalletService {
-    constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-    async getBalance(userId: string) {
-        return this.prisma.wallet.findUnique({
-            where: { userId },
-            select: {
-                walletId: true,
-                brlBalance: true,
-                btcBalance: true,
-                ethBalance: true,
-            }
-        })
+  async getBalance(userId: string) {
+    return this.prisma.wallet.findUnique({
+      where: { userId },
+      select: {
+        walletId: true,
+        brlBalance: true,
+        btcBalance: true,
+        ethBalance: true,
+      },
+    });
+  }
+
+  async getCoinBalance(userId: string, token: Tokens) {
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+    });
+
+    if (!wallet) {
+      throw new AppError('Carteira não encontrada', 404);
     }
 
-    async getCoinBalance(userId: string, token: Tokens) {
-        const wallet = await this.prisma.wallet.findUnique({
-            where: { userId }
-        });
+    const coinToken = {
+      BRL: {
+        balance: wallet.brlBalance,
+        type: 'brlBalance',
+      },
+      BTC: {
+        balance: wallet.btcBalance,
+        type: 'btcBalance',
+      },
+      ETH: {
+        balance: wallet.ethBalance,
+        type: 'ethBalance',
+      },
+    }[token];
 
-        if (!wallet) {
-            throw new AppError('Carteira não encontrada', 404);
-        }
+    return {
+      wallet: wallet.walletId,
+      coinToken,
+    };
+  }
 
-        const coinToken = {
-            BRL: {
-                balance: wallet.brlBalance,
-                type: 'brlBalance'
-            },
-            BTC: {
-                balance: wallet.btcBalance,
-                type: 'btcBalance'
-            },
-            ETH: {
-                balance: wallet.ethBalance,
-                type: 'ethBalance'
-            }
-        }[token];
+  async processDeposit(data: DepositDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { userId: data.userId },
+    });
 
-        return {
-            wallet: wallet.walletId,
-            coinToken
-        };
+    if (!user || !(data.token in Tokens)) {
+      throw new AppError('Usuario ou token inválido', 401);
     }
 
-    async processDeposit(data: DepositDto) {
-        const user = await this.prisma.user.findUnique({
-            where: { userId: data.userId }
-        })
+    const existing = await this.prisma.transactions.findUnique({
+      where: {
+        idempotencyKey: data.idempotencyKey,
+      },
+    });
 
-        if (!user || !(data.token in Tokens)) {
-            throw new AppError('Usuario ou token inválido', 401)
-        }
-
-        const existing = await this.prisma.transactions.findUnique({
-            where: {
-                idempotencyKey: data.idempotencyKey
-            }
-        });
-
-        if (existing) {
-            return existing;
-        }
-
-        const coinBalance = await this.getCoinBalance(user.userId, data.token)
-        const newBalance = coinBalance.coinToken.balance.plus(data.amount);
-
-        return this.prisma.$transaction([
-            this.prisma.transactions.create({
-                data: {
-                    walletId: coinBalance.wallet,
-                    amount: data.amount,
-                    token: data.token,
-                    type: 'DEPOSIT',
-                    idempotencyKey: data.idempotencyKey,
-                    previousBalance: coinBalance.coinToken.balance,
-                    newBalance
-                }
-            }),
-
-            this.prisma.wallet.update({
-                where: { walletId: coinBalance.wallet },
-                data: {
-                    [coinBalance.coinToken.type]: {
-                        increment: data.amount
-                    }
-                }
-            })
-        ]);
+    if (existing) {
+      return existing;
     }
 
-    async withdraw(userId: string, data: WithdrawDto) {
-        const user = await this.prisma.user.findUnique({
-            where: { userId }
-        })
+    const amount = new Prisma.Decimal(data.amount);
+    const coinBalance = await this.getCoinBalance(user.userId, data.token);
+    const newBalance = coinBalance.coinToken.balance.plus(amount);
 
-        if (!user || !(data.token in Tokens)) {
-            throw new AppError('Usuario ou token inválido', 401)
-        }
+    return this.prisma.$transaction([
+      this.prisma.wallet.update({
+        where: { walletId: coinBalance.wallet },
+        data: {
+          [coinBalance.coinToken.type]: {
+            increment: amount,
+          },
+        },
+      }),
 
-        const existing = await this.prisma.transactions.findUnique({
-            where: {
-                idempotencyKey: data.idempotencyKey
-            }
-        });
+      this.prisma.transactions.create({
+        data: {
+          walletId: coinBalance.wallet,
+          amount: amount,
+          token: data.token,
+          type: 'DEPOSIT',
+          idempotencyKey: data.idempotencyKey,
+          previousBalance: coinBalance.coinToken.balance,
+          newBalance,
+        },
+      }),
+    ]);
+  }
 
-        if (existing) {
-            return existing;
-        }
+  async withdraw(userId: string, data: WithdrawDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { userId },
+    });
 
-        const amount = new Prisma.Decimal(data.amount);
-        const coinBalance = await this.getCoinBalance(user.userId, data.token)
-
-        if (!coinBalance.coinToken.balance.gte(amount)) {
-            throw new AppError('Saldo da carteira insuficiente')
-        }
-
-        const newBalance = coinBalance.coinToken.balance.minus(amount);
-
-        return this.prisma.$transaction([
-            this.prisma.transactions.create({
-                data: {
-                    walletId: coinBalance.wallet,
-                    amount,
-                    token: data.token,
-                    type: 'WITHDRAWAL',
-                    idempotencyKey: data.idempotencyKey,
-                    previousBalance: coinBalance.coinToken.balance,
-                    newBalance
-                }
-            }),
-
-            this.prisma.wallet.update({
-                where: { walletId: coinBalance.wallet },
-                data: {
-                    [coinBalance.coinToken.type]: {
-                        decrement: amount
-                    }
-                }
-            })
-        ]);
+    if (!user || !(data.token in Tokens)) {
+      throw new AppError('Usuario ou token inválido', 401);
     }
+
+    const existing = await this.prisma.transactions.findUnique({
+      where: {
+        idempotencyKey: data.idempotencyKey,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const amount = new Prisma.Decimal(data.amount);
+    const coinBalance = await this.getCoinBalance(user.userId, data.token);
+
+    if (!coinBalance.coinToken.balance.gte(amount)) {
+      throw new AppError('Saldo da carteira insuficiente');
+    }
+
+    const newBalance = coinBalance.coinToken.balance.minus(amount);
+
+    return this.prisma.$transaction([
+      this.prisma.wallet.update({
+        where: { walletId: coinBalance.wallet },
+        data: {
+          [coinBalance.coinToken.type]: {
+            decrement: amount,
+          },
+        },
+      }),
+
+      this.prisma.transactions.create({
+        data: {
+          walletId: coinBalance.wallet,
+          amount,
+          token: data.token,
+          type: 'WITHDRAWAL',
+          idempotencyKey: data.idempotencyKey,
+          previousBalance: coinBalance.coinToken.balance,
+          newBalance,
+        },
+      }),
+    ]);
+  }
 }

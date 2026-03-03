@@ -1,5 +1,5 @@
 export enum Tokens {
-    BRL = "BRL",
-    BTC = "BTC",
-    ETH = "ETH",
+  BRL = 'BRL',
+  BTC = 'BTC',
+  ETH = 'ETH',
 }

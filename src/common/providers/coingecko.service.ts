@@ -1,37 +1,37 @@
-import { Injectable } from "@nestjs/common";
-import { Tokens } from "../enums/token.enum.js";
-import { AppError } from "../errors/app.error.js";
+import { Injectable } from '@nestjs/common';
+import { Tokens } from '../enums/token.enum.js';
+import { AppError } from '../errors/app.error.js';
 
 const tokenMap = {
-    BRL: {
-        id: 'brazilian-real',
-        symbol: 'brl'
-    },
-    BTC: {
-        id: 'bitcoin',
-        symbol: 'btc'
-    },
-    ETH: {
-        id: 'ethereum',
-        symbol: 'eth'
-    },
-}
+  BRL: {
+    id: 'brazilian-real',
+    symbol: 'brl',
+  },
+  BTC: {
+    id: 'bitcoin',
+    symbol: 'btc',
+  },
+  ETH: {
+    id: 'ethereum',
+    symbol: 'eth',
+  },
+};
 
 @Injectable()
 export class CoingeckoService {
-    async getPrice(tokenIn: Tokens, tokenOut: Tokens) {
-        const coinIn = tokenMap[tokenIn];
-        const coinOut = tokenMap[tokenOut];
+  async getPrice(tokenIn: Tokens, tokenOut: Tokens) {
+    const coinIn = tokenMap[tokenIn];
+    const coinOut = tokenMap[tokenOut];
 
-        const response = await fetch(
-            `https://api.coingecko.com/api/v3/simple/price?ids=${coinOut.id}&vs_currencies=${coinIn.symbol}&x_cg_demo_api_key=${process.env.COINGECKO_API_KEY}`
-        );
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinOut.id}&vs_currencies=${coinIn.symbol}&x_cg_demo_api_key=${process.env.COINGECKO_API_KEY}`,
+    );
 
-        if (!response.ok) {
-            throw new AppError("Falha ao buscar preço no Coingecko", 400);
-        }
-
-        const data = await response.json();
-        return data[coinOut.id][coinIn.symbol];
+    if (!response.ok) {
+      throw new AppError('Falha ao buscar preço no Coingecko', 400);
     }
+
+    const data = await response.json();
+    return data[coinOut.id][coinIn.symbol];
+  }
 }
